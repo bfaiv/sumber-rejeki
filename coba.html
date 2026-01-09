@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UD SUMBER REJEKI - v6.1 FIX</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Arial', sans-serif; background: #f8fafc; padding-bottom: 90px; }
+        .tab-active { background: #1e293b; color: white; border-top: 4px solid #3b82f6; }
+        input[type="text"] { text-transform: uppercase; }
+        .nota-box { width: 74mm; font-family: 'Courier New', monospace; font-size: 14px; color: #000; background: #fff; padding: 10px; margin: 0 auto; }
+        .garis { border-top: 1px dashed #000; margin: 8px 0; }
+        .jarak-potong { height: 60px; }
+        @media print {
+            nav, .no-print, button, #preview-modal, #modalKonfirmasi { display: none !important; }
+            body { background: white; padding: 0; margin: 0; }
+            #nota-container { display: block !important; width: 80mm; }
+            .nota-box { page-break-after: always; }
+        }
+        #nota-container, #print-area { display: none; }
+    </style>
+</head>
+<body>
+
+    <nav class="fixed bottom-0 left-0 right-0 bg-white border-t flex justify-around z-50 no-print shadow-lg">
+        <button onclick="switchTab('stok')" id="btn-stok" class="flex-1 py-4 font-bold text-xs tab-active uppercase">📦 Gudang</button>
+        <button onclick="switchTab('pos')" id="btn-pos" class="flex-1 py-4 font-bold text-xs text-slate-400 uppercase">💰 Kasir</button>
+        <button onclick="switchTab('riwayat')" id="btn-riwayat" class="flex-1 py-4 font-bold text-xs text-slate-400 uppercase">📜 Riwayat</button>
+    </nav>
+
+    <main id="tab-stok" class="p-4 max-w-5xl mx-auto">
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-2xl font-black text-slate-800 italic uppercase underline decoration-blue-500">UD. Sumber Rejeki</h1>
+            <button onclick="cetakStokGudang()" class="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-xs uppercase">Print Stok</button>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 mb-6 font-bold uppercase text-[12px]">
+            <div class="bg-white p-4 rounded-2xl border shadow-sm text-center">
+                <p class="text-slate-400">Modal Stok</p>
+                <p id="totalModal" class="text-slate-800 font-black">Rp 0</p>
+            </div>
+            <div class="bg-white p-4 rounded-2xl border shadow-sm text-center border-green-100">
+                <p class="text-green-500">Potensi Untung</p>
+                <p id="totalProfit" class="text-green-600 font-black">Rp 0</p>
+            </div>
+        </div>
+
+        <section class="bg-white p-6 rounded-3xl shadow-sm mb-6 no-print border-2 border-slate-200">
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-4 font-bold uppercase">
+                <input type="hidden" id="editId">
+                <div class="col-span-2"><label class="text-[10px] text-slate-400">Nama Barang</label><input type="text" id="namaBrg" class="w-full border-2 p-3 rounded-xl bg-slate-50 outline-none focus:border-blue-400"></div>
+                <div><label class="text-[10px] text-slate-400">Kategori</label><select id="katBrg" class="w-full border-2 p-3 rounded-xl bg-slate-50"><option>KERUPUK</option><option>PLASTIK</option><option>LAINNYA</option></select></div>
+                <div><label class="text-[10px] text-slate-400">Satuan</label><select id="satuanBrg" class="w-full border-2 p-3 rounded-xl bg-slate-50"><option>BAL</option><option>KG</option><option>PACK</option></select></div>
+                <div><label class="text-[10px] text-slate-400">Stok</label><input type="number" inputmode="numeric" id="stokBrg" class="w-full border-2 p-3 rounded-xl bg-slate-50 outline-none"></div>
+                
+                <div class="relative">
+                    <label class="text-[10px] text-blue-500">Harga Beli</label>
+                    <input type="number" inputmode="numeric" id="hargaBeli" oninput="showPreviewIDR(this, 'viewBeli')" class="w-full border-2 p-3 rounded-xl bg-slate-50 outline-none text-blue-600 font-black focus:border-blue-400">
+                    <div id="viewBeli" class="text-[11px] text-blue-500 font-bold absolute mt-1 ml-1 bg-white px-1">Rp 0</div>
+                </div>
+                <div class="relative col-span-2 md:col-span-1">
+                    <label class="text-[10px] text-green-600">Harga Jual</label>
+                    <input type="number" inputmode="numeric" id="hargaJual" oninput="showPreviewIDR(this, 'viewJual')" class="w-full border-2 border-green-100 p-3 rounded-xl bg-green-50 text-green-700 font-black outline-none focus:border-green-400">
+                    <div id="viewJual" class="text-[11px] text-green-600 font-bold absolute mt-1 ml-1 bg-white px-1">Rp 0</div>
+                </div>
+            </div>
+            <div class="flex gap-2 mt-10">
+                <button onclick="prosesBarang()" id="btnSimpan" class="flex-1 bg-slate-800 text-white font-black py-4 rounded-xl uppercase shadow-lg active:scale-95 transition-transform">Simpan Barang</button>
+                <button onclick="resetFormStok()" class="bg-slate-200 px-6 rounded-xl font-bold uppercase text-xs text-slate-500">Batal</button>
+            </div>
+        </section>
+
+        <div class="bg-white rounded-3xl border overflow-hidden shadow-sm">
+            <div class="p-4 bg-slate-50 border-b"><input type="text" id="searchGudang" oninput="renderTabel()" placeholder="CARI BARANG..." class="w-full p-2 rounded-lg border outline-none font-bold"></div>
+            <table class="w-full text-left text-sm">
+                <thead class="bg-slate-50 font-bold text-[10px] uppercase text-slate-400"><tr><th class="p-4">Barang</th><th class="p-4 text-center">Stok</th><th class="p-4 text-right">Harga Jual</th><th class="p-4 text-center">Aksi</th></tr></thead>
+                <tbody id="tabelBarang" class="divide-y font-bold uppercase"></tbody>
+            </table>
+        </div>
+    </main>
+
+    <main id="tab-pos" class="hidden p-4 max-w-4xl mx-auto">
+        <div class="space-y-4 font-bold uppercase">
+            <input type="text" id="customerName" placeholder="NAMA PELANGGAN..." class="w-full p-5 rounded-2xl border-2 font-black text-lg outline-none shadow-sm">
+            <div class="relative">
+                <input type="text" id="posSearchInput" oninput="searchPOS()" placeholder="CARI BARANG..." class="w-full p-5 rounded-2xl border-2 bg-white text-blue-600 outline-none">
+                <div id="posResults" class="absolute w-full mt-2 bg-white border rounded-2xl shadow-2xl z-50 hidden max-h-60 overflow-y-auto"></div>
+            </div>
+            <div id="posQtyArea" class="hidden p-6 bg-blue-600 rounded-3xl flex justify-between items-center text-white">
+                <span id="selectedItemName" class="font-black"></span>
+                <div class="flex gap-3"><input type="number" inputmode="numeric" id="posQty" value="1" class="w-20 p-3 rounded-xl text-black font-bold text-center"><button onclick="tambahKeKeranjang()" class="bg-white text-blue-600 px-6 py-3 rounded-xl font-black uppercase">Tambah</button></div>
+            </div>
+            <div class="bg-white rounded-3xl border-2 overflow-hidden shadow-sm">
+                <table class="w-full text-sm font-bold"><tbody id="keranjangTabel" class="divide-y uppercase"></tbody></table>
+                <div class="p-6 bg-slate-900 text-white flex justify-between items-center">
+                    <span class="text-xs opacity-50 uppercase tracking-widest">TOTAL</span>
+                    <span class="text-3xl font-black text-blue-400" id="grandTotal">Rp 0</span>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <button onclick="bukaKonfirmasi('CASH')" class="bg-green-600 text-white py-6 rounded-3xl font-black shadow-lg uppercase text-lg">LUNAS</button>
+                <button onclick="bukaKonfirmasi('TEMPO')" class="bg-rose-600 text-white py-6 rounded-3xl font-black shadow-lg uppercase text-lg">TEMPO</button>
+            </div>
+        </div>
+    </main>
+
+    <main id="tab-riwayat" class="hidden p-4 max-w-4xl mx-auto"><div id="historyFullList" class="space-y-3"></div></main>
+
+    <div id="modalKonfirmasi" class="fixed inset-0 z-[200] flex items-center justify-center opacity-0 pointer-events-none transition-all no-print px-4">
+        <div class="absolute inset-0 bg-slate-900/90" onclick="tutupKonfirmasi()"></div>
+        <div class="bg-white rounded-[40px] w-full max-w-md p-8 relative z-[210]">
+            <h3 class="text-xl font-black mb-4 uppercase text-center border-b pb-2">BAYAR <span id="metodeTeks" class="text-blue-600"></span></h3>
+            <div id="bayarSection">
+                <div id="tombolCepat" class="flex flex-wrap gap-2 mb-4 justify-center"></div>
+                <label class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">UANG DITERIMA</label>
+                <input type="number" inputmode="numeric" id="inputBayar" oninput="hitungKembalianLagi()" class="w-full p-6 border-4 border-slate-100 rounded-3xl text-4xl font-black text-blue-600 text-center outline-none">
+                <div id="viewBayar" class="text-center font-bold text-slate-400 mt-1">Rp 0</div>
+                <div class="flex justify-between p-4 mt-4 bg-slate-50 rounded-2xl font-bold uppercase italic"><span class="text-slate-400 text-sm">KEMBALI</span><span id="textKembalian" class="text-green-600 text-xl font-black">Rp 0</span></div>
+            </div>
+            <button onclick="prosesSimpan()" class="w-full bg-blue-600 text-white font-black py-6 rounded-3xl text-xl uppercase shadow-xl mt-6">PREVIEW NOTA</button>
+        </div>
+    </div>
+
+    <div id="preview-modal" class="fixed inset-0 z-[300] flex items-center justify-center hidden no-print px-4">
+        <div class="absolute inset-0 bg-slate-800/95" onclick="tutupPreview()"></div>
+        <div class="relative bg-white rounded-3xl w-full max-w-sm overflow-hidden flex flex-col shadow-2xl">
+            <div class="p-4 bg-slate-50 flex justify-between items-center border-b"><span class="font-black text-[10px] uppercase text-slate-500">Preview Nota</span><button onclick="tutupPreview()" class="text-red-500 font-black p-2">TUTUP</button></div>
+            <div id="preview-content" class="overflow-y-auto bg-white p-2" style="max-height: 65vh;"></div>
+            <div class="p-4 border-t"><button onclick="panggilPrint()" class="w-full bg-green-600 text-white font-black py-5 rounded-2xl text-xl shadow-lg uppercase tracking-widest">CETAK SEKARANG</button></div>
+        </div>
+    </div>
+
+    <div id="nota-container"></div>
+    <div id="print-area"></div>
+
+    <script>
+        let inventory = JSON.parse(localStorage.getItem('SR_5_stok')) || [];
+        let salesHistory = JSON.parse(localStorage.getItem('SR_5_history')) || [];
+        let keranjang = [];
+        let globalGrandTotal = 0, posSelectedId = null, currentMetode = 'CASH';
+
+        function showPreviewIDR(el, targetId) {
+            let val = parseInt(el.value) || 0;
+            document.getElementById(targetId).innerText = "Rp " + val.toLocaleString('id-ID');
+        }
+
+        function switchTab(t) {
+            document.querySelectorAll('main').forEach(m => m.classList.add('hidden'));
+            document.getElementById('tab-' + t).classList.remove('hidden');
+            document.querySelectorAll('nav button').forEach(b => b.className = 'flex-1 py-4 font-bold text-xs uppercase text-slate-400');
+            document.getElementById('btn-' + t).className = 'flex-1 py-4 font-bold text-xs uppercase tab-active';
+            if(t === 'stok') renderTabel();
+            if(t === 'riwayat') renderHistory();
+        }
+
+        function renderTabel() {
+            const t = document.getElementById('tabelBarang'), s = document.getElementById('searchGudang').value.toUpperCase();
+            t.innerHTML = ''; let modal = 0, profit = 0;
+            inventory.filter(i => i.nama.includes(s)).sort((a,b) => a.nama.localeCompare(b.nama)).forEach(i => {
+                modal += (i.beli * i.stok); profit += ((i.jual - i.beli) * i.stok);
+                t.innerHTML += `<tr class="bg-white"><td class="p-4 text-[11px]"><div>${i.nama}</div><div class="text-[9px] text-slate-400">${i.kategori} | ${i.satuan}</div></td><td class="p-4 text-center text-blue-600">${i.stok}</td><td class="p-4 text-right">Rp ${i.jual.toLocaleString('id-ID')}</td><td class="p-4 flex gap-3 justify-center"><button onclick="editBarang(${i.id})" class="text-blue-500 font-bold">EDIT</button><button onclick="hapusBarang(${i.id})" class="text-red-300">✕</button></td></tr>`;
+            });
+            document.getElementById('totalModal').innerText = "Rp " + modal.toLocaleString('id-ID');
+            document.getElementById('totalProfit').innerText = "Rp " + profit.toLocaleString('id-ID');
+        }
+
+        function prosesBarang() {
+            const idInput = document.getElementById('editId').value;
+            const data = {
+                id: idInput ? parseInt(idInput) : Date.now(),
+                nama: document.getElementById('namaBrg').value.trim().toUpperCase(),
+                kategori: document.getElementById('katBrg').value,
+                satuan: document.getElementById('satuanBrg').value,
+                stok: parseInt(document.getElementById('stokBrg').value) || 0,
+                beli: parseInt(document.getElementById('hargaBeli').value) || 0,
+                jual: parseInt(document.getElementById('hargaJual').value) || 0
+            };
+            if(!data.nama) return alert("NAMA BARANG HARUS DIISI!");
+            const idx = inventory.findIndex(x => x.id == data.id);
+            if(idx > -1) inventory[idx] = data; else inventory.push(data);
+            localStorage.setItem('SR_5_stok', JSON.stringify(inventory));
+            resetFormStok(); renderTabel();
+        }
+
+        function editBarang(id) {
+            const i = inventory.find(x => x.id == id);
+            document.getElementById('editId').value = i.id;
+            document.getElementById('namaBrg').value = i.nama;
+            document.getElementById('katBrg').value = i.kategori;
+            document.getElementById('satuanBrg').value = i.satuan;
+            document.getElementById('stokBrg').value = i.stok;
+            document.getElementById('hargaBeli').value = i.beli;
+            document.getElementById('hargaJual').value = i.jual;
+            showPreviewIDR({value:i.beli}, 'viewBeli');
+            showPreviewIDR({value:i.jual}, 'viewJual');
+            document.getElementById('btnSimpan').innerText = "Update Barang";
+            window.scrollTo({top:0, behavior:'smooth'});
+        }
+
+        function resetFormStok() {
+            document.getElementById('editId').value = '';
+            document.getElementById('namaBrg').value = '';
+            document.getElementById('stokBrg').value = '';
+            document.getElementById('hargaBeli').value = '';
+            document.getElementById('hargaJual').value = '';
+            document.getElementById('viewBeli').innerText = 'Rp 0';
+            document.getElementById('viewJual').innerText = 'Rp 0';
+            document.getElementById('btnSimpan').innerText = "Simpan Barang";
+            document.getElementById('namaBrg').focus();
+        }
+
+        function hapusBarang(id) { if(confirm("HAPUS BARANG?")) { inventory = inventory.filter(x => x.id !== id); localStorage.setItem('SR_5_stok', JSON.stringify(inventory)); renderTabel(); } }
+
+        function searchPOS() {
+            const q = document.getElementById('posSearchInput').value.toUpperCase(), r = document.getElementById('posResults');
+            if(q.length < 1) { r.classList.add('hidden'); return; }
+            const fil = inventory.filter(i => i.nama.includes(q) && i.stok > 0);
+            r.classList.remove('hidden');
+            r.innerHTML = fil.map(i => `<div onclick="selectPOS(${i.id},'${i.nama}')" class="p-5 border-b flex justify-between font-black uppercase"><span>${i.nama}</span><span>${i.stok} ${i.satuan}</span></div>`).join('');
+        }
+
+        function selectPOS(id, n) { posSelectedId = id; document.getElementById('selectedItemName').innerText = n; document.getElementById('posResults').classList.add('hidden'); document.getElementById('posQtyArea').classList.remove('hidden'); document.getElementById('posQty').value = 1; }
+
+        function tambahKeKeranjang() {
+            const q = parseInt(document.getElementById('posQty').value), item = inventory.find(i => i.id == posSelectedId);
+            if(q > item.stok) return alert("STOK KURANG!");
+            keranjang.push({ ...item, qty: q, harga_fix: item.jual });
+            document.getElementById('posQtyArea').classList.add('hidden');
+            document.getElementById('posSearchInput').value = '';
+            renderKeranjang();
+        }
+
+        function renderKeranjang() {
+            const t = document.getElementById('keranjangTabel'); let tot = 0; t.innerHTML = '';
+            keranjang.forEach((k, idx) => {
+                const sub = k.qty * k.harga_fix; tot += sub;
+                t.innerHTML += `<tr class="bg-white"><td class="p-4 text-xs"><div>${k.nama}</div><div class="text-blue-500 underline" onclick="editHargaPOS(${idx})">@${k.harga_fix.toLocaleString('id-ID')}</div></td><td class="text-center">${k.qty}</td><td class="p-4 text-right">${sub.toLocaleString('id-ID')}</td><td class="p-4 text-red-500 text-center" onclick="keranjang.splice(${idx},1);renderKeranjang();">✕</td></tr>`;
+            });
+            globalGrandTotal = tot; document.getElementById('grandTotal').innerText = "Rp " + tot.toLocaleString('id-ID');
+        }
+
+        function editHargaPOS(idx) { const n = prompt("HARGA BARU (ANGKA SAJA):", keranjang[idx].harga_fix); if(n) { keranjang[idx].harga_fix = parseInt(n); renderKeranjang(); } }
+
+        function bukaKonfirmasi(m) {
+            if(keranjang.length === 0) return;
+            currentMetode = m;
+            document.getElementById('metodeTeks').innerText = m;
+            document.getElementById('inputBayar').value = '';
+            document.getElementById('viewBayar').innerText = 'Rp 0';
+            const container = document.getElementById('tombolCepat');
+            container.innerHTML = `<button onclick="setBayarManual(${globalGrandTotal})" class="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold">PAS</button>`;
+            if(m === 'CASH') {
+                let bulatan = Math.ceil(globalGrandTotal / 50000) * 50000;
+                for(let i=0; i<3; i++) {
+                    let nom = bulatan + (i * 50000);
+                    if(nom > globalGrandTotal) container.innerHTML += `<button onclick="setBayarManual(${nom})" class="bg-slate-200 px-4 py-2 rounded-xl text-[10px] font-black uppercase text-slate-600">${(nom/1000)}RB</button>`;
+                }
+                document.getElementById('bayarSection').style.display = 'block';
+            } else { document.getElementById('bayarSection').style.display = 'none'; }
+            document.getElementById('modalKonfirmasi').classList.replace('opacity-0', 'opacity-100');
+            document.getElementById('modalKonfirmasi').classList.remove('pointer-events-none');
+            document.getElementById('textKembalian').innerText = "Rp 0";
+        }
+
+        function setBayarManual(n) { 
+            document.getElementById('inputBayar').value = n; 
+            hitungKembalianLagi(); 
+        }
+        
+        function hitungKembalianLagi() {
+            const b = parseInt(document.getElementById('inputBayar').value) || 0;
+            document.getElementById('viewBayar').innerText = "Rp " + b.toLocaleString('id-ID');
+            document.getElementById('textKembalian').innerText = "Rp " + Math.max(0, b - globalGrandTotal).toLocaleString('id-ID');
+        }
+
+        function prosesSimpan() {
+            const bayar = parseInt(document.getElementById('inputBayar').value) || 0;
+            if(currentMetode === 'CASH' && bayar < globalGrandTotal) return alert("UANG KURANG!");
+            const trx = { id: "SR-" + Date.now().toString().slice(-5), tgl: new Date().toLocaleString('id-ID'), customer: document.getElementById('customerName').value.trim().toUpperCase() || "UMUM", items: [...keranjang], total: globalGrandTotal, bayar: bayar, status: currentMetode };
+            keranjang.forEach(k => { const i = inventory.find(x => x.id == k.id); if(i) i.stok -= k.qty; });
+            salesHistory.unshift(trx);
+            localStorage.setItem('SR_5_history', JSON.stringify(salesHistory));
+            localStorage.setItem('SR_5_stok', JSON.stringify(inventory));
+            showPreview(trx); tutupKonfirmasi();
+        }
+
+        function generateNotaHTML(trx, ket) {
+            return `<div class="nota-box"><div style="float:right; border:1px solid #000; padding:2px; font-weight:bold; font-size:10px">${ket}</div><center><b style="font-size:16px">UD. SUMBER REJEKI</b><br>JOMBANG</center><div class="garis"></div><table style="width:100%; font-size:11px"><tr><td>${trx.tgl}</td><td align="right">${trx.id}</td></tr><tr><td colspan="2">NAMA: ${trx.customer}</td></tr></table><div class="garis"></div><table style="width:100%">${trx.items.map(i => `<tr><td colspan="2" style="text-transform:uppercase">${i.nama}</td></tr><tr><td style="padding-left:10px">${i.qty} x ${i.harga_fix.toLocaleString('id-ID')}</td><td align="right">${(i.qty*i.harga_fix).toLocaleString('id-ID')}</td></tr>`).join('')}</table><div class="garis"></div><div style="display:flex; justify-content:space-between; font-weight:bold; font-size:16px"><span>TOTAL</span><span>Rp ${trx.total.toLocaleString('id-ID')}</span></div>${trx.status === 'CASH' ? `<div style="display:flex; justify-content:space-between"><span>BAYAR</span><span>${trx.bayar.toLocaleString('id-ID')}</span></div><div style="display:flex; justify-content:space-between"><span>KEMBALI</span><span>${(trx.bayar-trx.total).toLocaleString('id-ID')}</span></div>` : '<div style="border:1px solid #000; text-align:center; padding:5px; margin-top:5px; font-weight:bold">TAGIHAN (TEMPO)</div>'}<div class="garis"></div><center style="margin-top:5px">TERIMA KASIH</center><div class="jarak-potong"></div></div>`;
+        }
+
+        function showPreview(trx) {
+            const isi = trx.status === 'TEMPO' ? generateNotaHTML(trx, "ASLI") + "<div style='height:20px'></div>" + generateNotaHTML(trx, "COPY") : generateNotaHTML(trx, "LUNAS");
+            document.getElementById('preview-content').innerHTML = isi;
+            document.getElementById('nota-container').innerHTML = isi;
+            document.getElementById('preview-modal').classList.remove('hidden');
+        }
+
+        function panggilPrint() { window.print(); tutupPreview(); keranjang = []; document.getElementById('customerName').value = ''; renderKeranjang(); renderTabel(); }
+
+        function renderHistory() {
+            const h = document.getElementById('historyFullList'); h.innerHTML = '';
+            salesHistory.forEach((s, idx) => {
+                h.innerHTML += `<div class="p-4 bg-white rounded-2xl border shadow-sm flex justify-between items-center font-bold uppercase"><div><p class="text-[9px] ${s.status==='TEMPO'?'text-red-500':'text-green-600'}">${s.status} | ${s.tgl}</p><p>${s.customer}</p><p class="text-blue-600 text-xs">Rp ${s.total.toLocaleString('id-ID')}</p></div><div class="flex gap-2"><button onclick='showPreview(${JSON.stringify(s)})' class="bg-slate-100 p-3 rounded-xl">🖨️</button><button onclick="hapusHistory(${idx})" class="text-red-300">✕</button></div></div>`;
+            });
+        }
+
+        function hapusHistory(idx) { if(confirm("HAPUS RIWAYAT?")) { salesHistory.splice(idx,1); localStorage.setItem('SR_5_history', JSON.stringify(salesHistory)); renderHistory(); } }
+        function tutupPreview() { document.getElementById('preview-modal').classList.add('hidden'); }
+        function tutupKonfirmasi() { document.getElementById('modalKonfirmasi').classList.replace('opacity-100', 'opacity-0'); document.getElementById('modalKonfirmasi').classList.add('pointer-events-none'); }
+        
+        function cetakStokGudang() {
+            const area = document.getElementById('print-area'); let html = `<center><h2>STOK UD. SUMBER REJEKI</h2></center><hr>`;
+            ['KERUPUK', 'PLASTIK', 'LAINNYA'].forEach(k => {
+                const items = inventory.filter(i => i.kategori === k);
+                if(items.length > 0) {
+                    html += `<h3>${k}</h3><table border="1" style="width:100%; border-collapse:collapse; text-transform:uppercase"><tr><th>BARANG</th><th>STOK</th><th>FISIK</th></tr>`;
+                    items.forEach(i => { html += `<tr><td>${i.nama} (${i.satuan})</td><td align="center">${i.stok}</td><td width="80"></td></tr>`; });
+                    html += `</table><br>`;
+                }
+            });
+            area.innerHTML = html; window.print();
+        }
+
+        renderTabel();
+    </script>
+</body>
+</html>
